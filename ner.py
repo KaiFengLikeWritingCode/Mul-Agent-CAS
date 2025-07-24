@@ -1,78 +1,86 @@
 # ner.py ────────────────────────────────────────────────────────────
-import json, re, time
+import json
+import re
 import torch
-from transformers import pipeline
-from config import LLM_MODEL_NAME, ENTITY_TYPES   # ["vehicle", …, "other"]
+from PIL import Image
+from transformers import Blip2Processor, Blip2ForConditionalGeneration
+from config import BLIP2_MODEL_NAME, ENTITY_TYPES   # ENTITY_TYPES = ["vehicle","aircraft","vessel","weapon","location","other"]
 
 # 1. 设备
-device = 0 if torch.cuda.is_available() else -1
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# 2. 通用大模型，用于生成 JSON & 兜底分类
-gen_pipe = pipeline(
-    "text2text-generation",
-    model=LLM_MODEL_NAME,
-    device=device
-)
+# 2. 全局加载 BLIP-2 Processor 和 Model
+_processor = Blip2Processor.from_pretrained(BLIP2_MODEL_NAME)
+_model     = Blip2ForConditionalGeneration.from_pretrained(BLIP2_MODEL_NAME).to(device)
+_model.eval()
 
-# 3. 单实体分类的小 Prompt（兜底用）
-def classify_type_with_llm(name: str) -> str:
-    prompt = (
-        f'name: "{name}"\n'
-        "Which category does it belong to? "
-        "Choose exactly one: vehicle, aircraft, vessel, weapon, location, other.\n"
-        "Here are some sample categories: In our annotations, the following mappings are typical: PUMA, Dachs, Jaguar, Leopard 2 A7, Leopard 2 A6, Marder, M113, GTK Boxer, and Iveco Trekker are labeled as vehicle; Boeing E-3, Tornado, Eurofighter, Airbus A400M, NH-90, CH-53, F-16C/D, F-18 Hornet, Sea Lynx MK 88A, H145M, Tiger, and C-130J Hercules are aircraft; MARS, PATRIOT, MILAN, and P8 are weapon; Syria, Mediterranean Sea, Alps, Gaza Strip, and Havel are location; and UN, ABC-Defense, Combo Pen Training Simulator, Orion, Daesh, Explosive Ordnance Disposal, Heron 1, Tactical Air Force Squadron 51, Medium Girder Bridge, and Forward Air MedEvac are other."
-        "Answer with only the category word."
-    )
-    out = gen_pipe(prompt, max_new_tokens=5)[0]["generated_text"].strip().lower()
-    return out if out in ENTITY_TYPES else "other"
+def extract_entities(image_path: str, text: str):
+    """
+    多模态实体抽取：
+      Input:  image_path, text
+      Output: [ {"name": str, "label": str}, … ]
+    """
+    # 1) 读取图像
+    image = Image.open(image_path).convert("RGB")
 
-# 4. 主函数：抽实体 + 类型
-def extract_entities(text: str):
-    """返回 [{'name': 'PUMA', 'label': 'vehicle'}, …]，始终合法"""
+    # 2) 构造 Prompt，强调多词实体和输出 JSON
+    # prompt = (
+    #     "You are shown an image and its caption. "
+    #     "Identify all military-related entities, which may be multi-word phrases "
+    #     "(e.g. \"armoured infantry fighting vehicle PUMA\"). "
+    #     "Return ONLY a JSON array enclosed in <json>…</json>, "
+    #     "each item with keys 'name' and 'label', where label is one of "
+    #     "[vehicle, aircraft, vessel, weapon, location, other]."
+    #     f"\n\nCaption: \"{text}\""
+    #     "\n\n<json>"
+    # )
     prompt = f"""
-Example:
-Input: "Soldiers test the overall system demonstrator armoured infantry fighting vehicle PUMA."
-<json>
-[
-  {{ "name": "PUMA", "label": "vehicle" }}
-]
-</json>
+    Example:
+    Input: "Tornado of Tactical Air Force Squadron 51 takes off from airbase for mission in Syria."
+    <json>
+    [
+      {{ "name": "Tornado", "label": "aircraft" }},{{ "name": "Tactical Air Force Squadron 51", "label": "other" }},{{ "name": "Syria", "label": "location" }}
+    ]
+    </json>
 
-Now do the same for the following sentence. 
-Note that the extracted entities should belong to the class of vehicle, aircraft, vessel, weapon, location, other
-Output must be enclosed in a single <json>...</json> block, without any commentary.
-Sentence: "{text}"
-"""
+    Now do the same for the following sentence. 
+    Sentence: "{text}"
+    Note that the extracted entities should belong to the class of vehicle, aircraft, vessel, weapon, location, other
+    Output must be enclosed in a single <json>...</json> block, without any commentary.
+    Note that name is not necessarily a word, do not extract the word as you see it, but extract the name according to the meaning of the sentence, e.g. Taktisches Luftwaffengeschwader 51 Immelmann
+    """
 
-    raw = gen_pipe(prompt, max_new_tokens=256)[0]["generated_text"]
-    # 提取 <json> … </json>
-    m = re.search(r"<json>(.*?)</json>", raw, re.S | re.I)
-    if m:
-        json_str = m.group(1).strip()
-        try:
-            ents = json.loads(json_str)
-            # 再次过滤非法类别
-            ents = [e for e in ents if e.get("label") in ENTITY_TYPES]
-            if ents:
-                return ents
-        except json.JSONDecodeError:
-            pass  # 继续走兜底
+    # 3) 编码输入并生成
+    inputs = _processor(images=image, text=prompt, return_tensors="pt").to(device)
+    print("=== [NER] inputs  ===")
+    print(inputs)
+    outputs = _model.generate(**inputs, max_new_tokens=256)
+    print("=== [NER] outputs ===")
+    print(outputs)
+    raw = _processor.decode(outputs[0], skip_special_tokens=True)
 
-    # ========= 兜底流程 =========
-    # 1) 先用非常宽松的正则把所有连续大写/首字母词串出来
-    #    这只是示例，你可以换成专业 NER
-    candidates = re.findall(r"\b[A-Z][A-Za-z0-9\-_/]+\b", text)
-    seen, ents = set(), []
-    for name in candidates:
-        if name.lower() in seen:
-            continue
-        seen.add(name.lower())
-        ent_type = classify_type_with_llm(name)
-        ents.append({"name": name, "label": ent_type})
-        # 避免对长句过多请求，可限制最多 10 个实体
-        if len(ents) >= 10:
-            break
-        # 可适当 sleep 避免速率限制
-        time.sleep(0.1)
-    return ents
+    print("=== [NER] Raw model output ===")
+    print(raw)
+    print("=== [NER] End of raw output ===")
+
+    # 4) 提取 JSON 块
+    m = re.search(r"<json>(.*?)</json>", raw, re.S|re.I)
+    json_str = m.group(1).strip() if m else raw.strip()
+
+    # 5) 解析 JSON
+    try:
+        ents = json.loads(json_str)
+    except json.JSONDecodeError:
+        # 如果一不留神输出没闭合，就找第一个[...]块
+        m2 = re.search(r"\[.*\]", json_str, re.S)
+        ents = json.loads(m2.group(0)) if m2 else []
+
+    # 6) 过滤异常并返回
+    cleaned = []
+    for e in ents:
+        name = e.get("name")
+        label= e.get("label")
+        if isinstance(name,str) and label in ENTITY_TYPES:
+            cleaned.append({"name": name, "label": label})
+    return cleaned
 # ───────────────────────────────────────────────────────────────────

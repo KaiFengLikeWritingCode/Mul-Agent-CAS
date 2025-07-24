@@ -76,3 +76,5 @@ def match_entities(entities, crops, boxes):
             "score": float(sim[i, j])
         })
     return results
+
+
