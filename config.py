@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent
 # GroundingDINO
 GDINO_CONFIG     = str(ROOT / "models" / "GroundingDINO_SwinT_OGC.py")
 GDINO_CHECKPOINT = str(ROOT / "models" / "groundingdino_swint_ogc.pth")
-GDINO_BOX_THRESHOLD = 0.3
+GDINO_BOX_THRESHOLD = 0.25
 
 # CLIP
 # CLIP_MODEL_NAME = "ViT-B/32"
