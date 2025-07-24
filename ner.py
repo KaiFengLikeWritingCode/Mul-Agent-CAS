@@ -14,6 +14,23 @@ _processor = Blip2Processor.from_pretrained(BLIP2_MODEL_NAME)
 _model     = Blip2ForConditionalGeneration.from_pretrained(BLIP2_MODEL_NAME).to(device)
 _model.eval()
 
+from transformers import pipeline
+
+# vqa_pipe = pipeline(
+#     task="vqa",            # 或 "visual-question-answering"
+#     model=_model,
+#     processor=_processor,
+#     device=0 if device.startswith("cuda") else -1,
+# )
+vqa_pipe = pipeline(
+    task="visual-question-answering",    # 或 "vqa"
+    model=_model,
+    tokenizer=_processor.tokenizer,          # 文本部分
+    image_processor=_processor.image_processor,  # 图像部分
+    device=0 if device.startswith("cuda") else -1,
+)
+
+
 def extract_entities(image_path: str, text: str):
     """
     多模态实体抽取：
@@ -51,13 +68,18 @@ def extract_entities(image_path: str, text: str):
     """
 
     # 3) 编码输入并生成
-    inputs = _processor(images=image, text=prompt, return_tensors="pt").to(device)
-    print("=== [NER] inputs  ===")
-    print(inputs)
-    outputs = _model.generate(**inputs, max_new_tokens=256)
-    print("=== [NER] outputs ===")
-    print(outputs)
-    raw = _processor.decode(outputs[0], skip_special_tokens=True)
+    # inputs = _processor(images=image, text=prompt, return_tensors="pt").to(device)
+    # print("=== [NER] inputs  ===")
+    # print(inputs)
+    # outputs = _model.generate(**inputs, max_new_tokens=256)
+    # print("=== [NER] outputs ===")
+    # print(outputs)
+    # raw = _processor.decode(outputs[0], skip_special_tokens=True)
+
+    # raw = mm_pipe(image, prompt=prompt, max_new_tokens=256)[0]["generated_text"]
+    # raw = mm_pipe(image, text=prompt, max_new_tokens=256)[0]["generated_text"]
+    output = vqa_pipe(image=image, question=prompt)
+    raw = output["answer"]
 
     print("=== [NER] Raw model output ===")
     print(raw)

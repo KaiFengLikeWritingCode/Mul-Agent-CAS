@@ -3,7 +3,7 @@
 import argparse
 import os
 from PIL import Image, ImageDraw, ImageFont
-from ner import extract_entities            # 注意：改为你新的多模态 ner 模块
+from ner_deepseek import extract_entities            # 注意：改为你新的多模态 ner 模块
 from detector import detect_boxes
 from matcher import match_entities
 
@@ -24,7 +24,8 @@ def process(image_path, text):
         if label not in ALLOWED_LABELS:
             results.append({"name":name, "label":label, "bbox":None, "score":None})
             continue
-        boxes = detect_boxes(image_path, name)
+        # boxes = detect_boxes(image_path, name)
+        boxes = detect_boxes(image_path, label)
         if not boxes:
             results.append({"name":name, "label":label, "bbox":None, "score":None})
             continue
