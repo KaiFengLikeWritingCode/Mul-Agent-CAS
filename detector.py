@@ -6,7 +6,7 @@ from config import GDINO_BOX_THRESHOLD
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-MODEL_ID  = "IDEA-Research/grounding-dino-base"
+MODEL_ID = "IDEA-Research/grounding-dino-base"
 processor = AutoProcessor.from_pretrained(MODEL_ID)
 model     = AutoModelForZeroShotObjectDetection.from_pretrained(MODEL_ID).to(device).eval()
 
@@ -33,11 +33,12 @@ def detect_boxes(image_path: str, phrase: str) -> List[List[int]]:
             inputs.input_ids,
             box_threshold=GDINO_BOX_THRESHOLD,
             text_threshold=0.0,
-            target_sizes=[image.size[::-1]],   # (H,W)
+            target_sizes=[image.size[::-1]],  # (H, W)
         )
 
         boxes = results[0]["boxes"].cpu().numpy().tolist()
         return boxes
+
     except Exception:
         # 任意异常均视为“没有检测到”
         return []
