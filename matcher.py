@@ -80,7 +80,7 @@ from scipy.optimize import linear_sum_assignment
 from vqa_score import score_pair        # 你已有的 BLIP-2/VL2 评分函数，返回 0~1
 SCORE_NEG = 1e3     # 匹配不到时的大成本
 
-def match_entities(ents, crops, boxes, thr: float = 0.5):
+def match_entities(ents, crops, boxes, thr: float = 0.1):
     """
     给定实体列表、crop 图和 boxes，返回与 ents 等长的结果 list。
     每个实体最多分配一个 box；同一 box 也只能给一个实体。
