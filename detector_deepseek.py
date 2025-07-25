@@ -88,15 +88,15 @@ def main():
         description="Test detector_api.detect_boxes() with an image and a phrase"
     )
     parser.add_argument(
-        "--image", "-i", required=True,
+        "--image", "-i", required=True,default="datasets/sample_image/15.jpg",
         help="Path to the input image file"
     )
     parser.add_argument(
-        "--phrase", "-p", required=True,
+        "--phrase", "-p", required=True,default="Eurofighter",
         help="Text phrase to ground (e.g. 'Eurofighter')"
     )
     parser.add_argument(
-        "--out", "-o", default="outputs/test_annotated.jpg",
+        "--out", "-o", default="outputs/test_annotated_15.jpg",
         help="Where to save the annotated image (optional)"
     )
     args = parser.parse_args()
