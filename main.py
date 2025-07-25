@@ -4,7 +4,8 @@ from typing import List, Dict
 from PIL import Image, ImageDraw, ImageFont
 
 from ner_deepseek import extract_entities    # 你的多模态 NER 模块
-from detector      import detect_boxes
+# from detector      import detect_boxes
+from detector_deepseek      import detect_boxes
 from matcher       import match_entities
 
 ALLOWED_LABELS = {"vehicle", "aircraft", "vessel", "weapon"}
