@@ -54,10 +54,13 @@ def detect_boxes(image_path: str, phrase: str, timeout: int = 120) -> List[List[
         if status.get("status") in ("failed",):
             return []
         if time.time() - start > timeout:
+            print("-----超时----")
             return []
 
     # 5) 解析 output 列表，找到含 <|det|> 的那一行
     outputs = status.get("output", [])
+    print("-----outputs----")
+    print(outputs)
     for raw in reversed(outputs):
         m = re.search(r"<\|det\|>(\[\[.*?\]\])", raw)
         if m:
@@ -88,7 +91,7 @@ def main():
         description="Test detector_api.detect_boxes() with an image and a phrase"
     )
     parser.add_argument(
-        "--image", "-i", required=True,default="datasets/sample_image/15.jpg",
+        "--image", "-i", required=True,default="./datasets/sample_image/15.jpg",
         help="Path to the input image file"
     )
     parser.add_argument(
@@ -96,7 +99,7 @@ def main():
         help="Text phrase to ground (e.g. 'Eurofighter')"
     )
     parser.add_argument(
-        "--out", "-o", default="outputs/test_annotated_15.jpg",
+        "--out", "-o", default="./outputs/test_annotated_15.jpg",
         help="Where to save the annotated image (optional)"
     )
     args = parser.parse_args()
@@ -115,3 +118,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# python detector_deepseek.py     --image ./datasets/sample_image/15.jpg     --phrase "aircraft"     --out ./outputs/test_annotated_15.jpg
