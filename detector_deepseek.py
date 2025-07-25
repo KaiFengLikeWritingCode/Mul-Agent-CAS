@@ -1,81 +1,52 @@
-# detector_api.py
+# test_detector_api.py
+
+import argparse
 import os
-import re
-import time
-import json
-import base64
-import requests
-from typing import List
+from PIL import Image, ImageDraw
+from detector_api import detect_boxes
 
-# ———— 配置 ————
-REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
-if not REPLICATE_API_TOKEN:
-    raise EnvironmentError("请先设置环境变量 REPLICATE_API_TOKEN")
-
-# 一定要用官方的 API 域名
-REPLICATE_URL = "https://api.replicate.com/v1/predictions"
-HEADERS = {
-    "Authorization": f"Token {REPLICATE_API_TOKEN}",
-    "Content-Type":  "application/json",
-}
-
-# 也可以指定 small、tiny 版：chenxwh/deepseek-vl2:small 等
-MODEL_VERSION = "chenxwh/deepseek-vl2:latest"
-
-
-def detect_boxes(image_path: str, phrase: str, timeout: int = 120) -> List[List[int]]:
+def draw_boxes_on_image(image_path: str, boxes, output_path: str):
     """
-    用 DeepSeek-VL2 （Replicate）做零样本检测。
-    返回 [[xmin,ymin,xmax,ymax], …]。超时、报错或无命中均返回 []。
+    简单地把 detect_boxes 输出的 rectangles 画到原图上，并保存到 output_path。
     """
-    # 1) 读取 & base64 编码
-    with open(image_path, "rb") as f:
-        image_b64 = base64.b64encode(f.read()).decode()
+    img = Image.open(image_path).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    for box in boxes:
+        xmin, ymin, xmax, ymax = box
+        draw.rectangle([xmin, ymin, xmax, ymax], outline="red", width=3)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    img.save(output_path)
+    print(f"Annotated image saved to {output_path}")
 
-    # 2) Prompt: grounding 格式
-    prm = f"<|grounding|><|ref|>{phrase}<|/ref|>."
+def main():
+    parser = argparse.ArgumentParser(
+        description="Test detector_api.detect_boxes() with an image and a phrase"
+    )
+    parser.add_argument(
+        "--image", "-i", required=True, default="datasets/sample_image/15.jpg",
+        help="Path to the input image file"
+    )
+    parser.add_argument(
+        "--phrase", "-p", required=True,default="Eurofighter",
+        help="Text phrase to ground (e.g. 'Eurofighter')"
+    )
+    parser.add_argument(
+        "--out", "-o", default="outputs/test_annotated_15.jpg",
+        help="Where to save the annotated image (optional)"
+    )
+    args = parser.parse_args()
 
-    payload = {
-        "version": MODEL_VERSION,
-        "input": {
-            "prompt": prm,
-            "image":   f"data:image/jpeg;base64,{image_b64}"
-        }
-    }
-
-    # 3) 发起预测任务
-    create_resp = requests.post(REPLICATE_URL, json=payload, headers=HEADERS)
-    create_resp.raise_for_status()
-    job = create_resp.json()
-    job_id = job.get("id")
-    if not job_id:
-        return []
-
-    # 4) 轮询状态
-    start = time.time()
-    status = None
-    while time.time() - start < timeout:
-        time.sleep(1)
-        status_resp = requests.get(f"{REPLICATE_URL}/{job_id}", headers=HEADERS)
-        status_resp.raise_for_status()
-        status = status_resp.json()
-        st = status.get("status")
-        if st == "succeeded":
-            break
-        if st in ("failed", "canceled"):
-            return []
+    print(f"Running detect_boxes on image: {args.image!r} with phrase: {args.phrase!r}")
+    boxes = detect_boxes(args.image, args.phrase)
+    if not boxes:
+        print("No boxes detected.")
     else:
-        # 超时
-        return []
+        print("Detected boxes:")
+        for idx, box in enumerate(boxes):
+            print(f"  [{idx}] {box}")
 
-    # 5) 从 output 列表里抽带 <|det|> 的行
-    outputs = status.get("output") or []
-    # 倒序找最新的那个
-    for entry in reversed(outputs):
-        m = re.search(r"<\|det\|>(\[\[.*?\]\])", entry)
-        if m:
-            boxes = json.loads(m.group(1))
-            # 确保转 int
-            return [[int(x) for x in box] for box in boxes]
+    # 可视化
+    draw_boxes_on_image(args.image, boxes, args.out)
 
-    return []
+if __name__ == "__main__":
+    main()
