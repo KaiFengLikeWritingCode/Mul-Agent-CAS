@@ -61,7 +61,7 @@ def process(image_path: str, caption: str):
 
         # 2) 裁剪 & 匹配
         crops   = crop_regions(img, boxes)
-        matched = match_entities(ents_of_lbl, crops, boxes, thr=0.1)
+        matched = match_entities(ents_of_lbl, crops, boxes, thr=0.01)
         results.extend(matched)
 
     # invalid_ents 全部 None
