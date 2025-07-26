@@ -122,3 +122,4 @@ if __name__ == "__main__":
 
 
 # python detector_deepseek.py     --image ./datasets/sample_image/15.jpg     --phrase "aircraft"     --out ./outputs/test_annotated_15.jpg
+
