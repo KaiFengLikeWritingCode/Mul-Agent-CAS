@@ -33,30 +33,22 @@ def encode_images(crops):
     return feats / feats.norm(dim=-1, keepdim=True)
 
 def match_entities(entities, crops, boxes):
-    """
-    多实体 <-> 多检测框 用匈牙利算法匹配
-    entities: [{'name','label'}]
-    crops: 与 boxes 一一对应
-    boxes: [[xmin,ymin,xmax,ymax], ...]
-    """
     if not entities or not crops:
         return []
 
-    # 用 name 生成文本特征
     t_feats = encode_texts([e["name"] for e in entities])
     v_feats = encode_images(crops)
     sim = (t_feats @ v_feats.T).cpu().numpy()  # [N, M]
 
-    # 匈牙利算法最大化相似度 → 最小化负相似度
+    # 匈牙利算法，确保一对一匹配
     row_ind, col_ind = linear_sum_assignment(-sim)
 
     results = []
     for r, c in zip(row_ind, col_ind):
         results.append({
-            "name":  entities[r]["name"],
+            "name": entities[r]["name"],
             "label": entities[r]["label"],
-            "bbox":  boxes[c],
-            "score": float(sim[r, c])
+            "bbox": boxes[c],
+            "score": float(sim[r, c])  # 匹配相似度
         })
-
     return results

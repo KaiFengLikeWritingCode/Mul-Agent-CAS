@@ -10,10 +10,35 @@ from collections import defaultdict
 import os
 
 def crop_regions(image: Image.Image, boxes):
+    """
+    根据给定的 boxes 裁剪区域并返回图像列表。
+    boxes: List[List[xmin,ymin,xmax,ymax]] 或 [(bbox, score)] 形式
+    """
     crops = []
-    for xmin, ymin, xmax, ymax in boxes:
-        crops.append(image.crop((xmin, ymin, xmax, ymax)).convert("RGB"))
+    W, H = image.size
+
+    for b in boxes:
+        # 兼容 [(bbox, score)] 或 [xmin,ymin,xmax,ymax]
+        if isinstance(b, (tuple, list)) and len(b) == 2 and isinstance(b[0], (list, tuple)):
+            xmin, ymin, xmax, ymax = b[0]
+        else:
+            xmin, ymin, xmax, ymax = b
+
+        # 防止越界
+        xmin = max(0, int(xmin))
+        ymin = max(0, int(ymin))
+        xmax = min(W, int(xmax))
+        ymax = min(H, int(ymax))
+
+        # 忽略无效框
+        if xmax <= xmin or ymax <= ymin:
+            continue
+
+        crop = image.crop((xmin, ymin, xmax, ymax)).convert("RGB")
+        crops.append(crop)
+
     return crops
+
 
 # def process(image_path, text):
 #     img = Image.open(image_path).convert("RGB")
@@ -35,24 +60,29 @@ def process(image_path, text):
     ents = extract_entities(text)  # [{'name':..., 'label':...}]
     all_results = []
 
-    # 1. 按 label 分组
+    # 按 label 分组
+    from collections import defaultdict
     label_groups = defaultdict(list)
     for e in ents:
         label_groups[e["label"]].append(e)
 
-    # 2. 每个 label 单独检测和匹配
+    # 每个 label 单独检测
     for label, group in label_groups.items():
         print(f"Detecting label: {label}")
-        boxes = detect_boxes(image_path, label)  # 用 label 做检测
-        if not boxes:
-            print(f"No boxes detected for label: {label}")
+        det_results = detect_boxes(image_path, label)  # [(bbox, score), ...]
+        if not det_results:
+            print(f"No boxes detected for {label}")
             continue
 
-        # 裁剪所有检测框
+        boxes, scores = zip(*det_results)
         crops = crop_regions(img, boxes)
 
-        # 匹配多个实体到多个检测框
+        # 多实体-多检测框匹配
         matched = match_entities(group, crops, boxes)
+        # 把score补回去
+        for m in matched:
+            idx = boxes.index(m["bbox"])
+            m["score"] = scores[idx]
         all_results.extend(matched)
 
     return img, all_results

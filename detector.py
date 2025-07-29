@@ -31,4 +31,8 @@ def detect_boxes(image_path: str, phrase: str):
 
     detections = results[0]
     boxes = detections["boxes"].cpu().numpy().tolist()
-    return boxes
+    scores = detections["scores"].cpu().numpy().tolist()
+
+    # 返回 bbox+score
+    return [(b, s) for b, s in zip(boxes, scores) if s >= GDINO_BOX_THRESHOLD]
+
