@@ -57,12 +57,19 @@ def crop_regions(image: Image.Image, boxes):
 #     return img, all_results
 def process(image_path, text):
     img = Image.open(image_path).convert("RGB")
-    ents = extract_entities(text)  # [{'name':..., 'label':...}]
+    ents = extract_entities(image_path, text)  # [{'name':..., 'label':...}]
+    print(ents)
     all_results = []
 
     # 按 label 分组
     from collections import defaultdict
     label_groups = defaultdict(list)
+
+    print("\n=== Label Groups ===")
+    for label, group in label_groups.items():
+        print(f"Label: {label}")
+        for entity in group:
+            print(f"  - {entity['name']}")
     for e in ents:
         label_groups[e["label"]].append(e)
 
@@ -70,6 +77,11 @@ def process(image_path, text):
     for label, group in label_groups.items():
         print(f"Detecting label: {label}")
         det_results = detect_boxes(image_path, label)  # [(bbox, score), ...]
+
+        print("=== Detection Results ===")
+        print(f"Found {len(det_results)} boxes for label '{label}':")
+        for i, (bbox, score) in enumerate(det_results, 1):
+            print(f"  Box {i}: bbox={bbox}, score={score:.2f}")
         if not det_results:
             print(f"No boxes detected for {label}")
             continue
