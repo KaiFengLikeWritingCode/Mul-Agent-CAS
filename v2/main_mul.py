@@ -5,7 +5,7 @@ import os
 import argparse
 from pathlib import Path
 
-from main_clip import process, draw_and_save  # draw_and_save 绘制并保存带框图像
+from main import process, draw_and_save  # draw_and_save 绘制并保存带框图像
 
 def load_json(path: Path):
     if path.exists():

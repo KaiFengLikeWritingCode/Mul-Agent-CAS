@@ -2,11 +2,9 @@
 
 import argparse
 from PIL import Image, ImageDraw, ImageFont
-from ner_deepseek import extract_entities
-# from ner_clip import extract_entities
+from ner_clip import extract_entities
 from detector import detect_boxes
 from matcher import match_entities
-from collections import defaultdict
 import os
 
 def crop_regions(image: Image.Image, boxes):
@@ -15,48 +13,20 @@ def crop_regions(image: Image.Image, boxes):
         crops.append(image.crop((xmin, ymin, xmax, ymax)).convert("RGB"))
     return crops
 
-# def process(image_path, text):
-#     img = Image.open(image_path).convert("RGB")
-#     # ents = extract_entities(text)
-#     ents = extract_entities(image_path, text)
-#     all_results = []
-#     for ent in ents:
-#         # 用实体 name 做零样本检测
-#         boxes = detect_boxes(image_path, ent["name"])
-#         if not boxes:
-#             continue
-#         # 裁剪并匹配
-#         crops = crop_regions(img, boxes)
-#         matched = match_entities([ent], crops, boxes)
-#         all_results.extend(matched)
-#     return img, all_results
 def process(image_path, text):
     img = Image.open(image_path).convert("RGB")
-    ents = extract_entities(text)  # [{'name':..., 'label':...}]
+    ents = extract_entities(text)
     all_results = []
-
-    # 1. 按 label 分组
-    label_groups = defaultdict(list)
-    for e in ents:
-        label_groups[e["label"]].append(e)
-
-    # 2. 每个 label 单独检测和匹配
-    for label, group in label_groups.items():
-        print(f"Detecting label: {label}")
-        boxes = detect_boxes(image_path, label)  # 用 label 做检测
+    for ent in ents:
+        # 用实体 name 做零样本检测
+        boxes = detect_boxes(image_path, ent["name"])
         if not boxes:
-            print(f"No boxes detected for label: {label}")
             continue
-
-        # 裁剪所有检测框
+        # 裁剪并匹配
         crops = crop_regions(img, boxes)
-
-        # 匹配多个实体到多个检测框
-        matched = match_entities(group, crops, boxes)
+        matched = match_entities([ent], crops, boxes)
         all_results.extend(matched)
-
     return img, all_results
-
 
 def draw_and_save(img: Image.Image, results: list, output_path: str):
     """

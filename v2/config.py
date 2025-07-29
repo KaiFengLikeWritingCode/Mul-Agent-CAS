@@ -14,14 +14,15 @@ ROOT = Path(__file__).resolve().parent
 # GroundingDINO
 GDINO_CONFIG     = str(ROOT / "models" / "GroundingDINO_SwinT_OGC.py")
 GDINO_CHECKPOINT = str(ROOT / "models" / "groundingdino_swint_ogc.pth")
-GDINO_BOX_THRESHOLD = 0.3
+GDINO_BOX_THRESHOLD = 0.01
 
 # CLIP
 # CLIP_MODEL_NAME = "ViT-B/32"
 CLIP_MODEL_NAME = "openai/clip-vit-base-patch32"
 
 BLIP2_MODEL_NAME = "Salesforce/blip2-opt-2.7b"
-# BLIP2_MODEL_NAME = "Salesforce/blip2-flan-t5-small"
+# BLIP2_MODEL_NAME = "Salesforce/blip2-flan-t5-xl"
+
 
 # 允许的实体类别
 ENTITY_TYPES = ["vehicle", "aircraft", "vessel", "weapon", "location", "other"]

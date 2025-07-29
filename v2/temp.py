@@ -11,8 +11,6 @@
 # model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device)
 #
 #
-# python main.py --image datasets/sample_image/12.jpg --text "Tornado of Tactical Air Force Squadron 51 takes off from airbase for mission in Syria. " --out outputs/12_annotated.jpg
-# python main.py --image datasets/sample_image/16.jpg --text "The Airbus 10 performs a multi-role transport task, carrying soldiers. " --out outputs/16_annotated.jpg
 #
 # # vehicle, aircraft, vessel, weapon, location, other
 # #  车辆、飞机、船只、武器、地点、其他
