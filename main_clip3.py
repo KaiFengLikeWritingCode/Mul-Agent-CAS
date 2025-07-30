@@ -9,6 +9,8 @@ from matcher import match_entities
 from collections import defaultdict
 import os
 
+from generate_description import generate_description_with_llm
+
 def crop_regions(image: Image.Image, boxes):
     """
     根据给定的 boxes 裁剪区域并返回图像列表。
@@ -40,67 +42,97 @@ def crop_regions(image: Image.Image, boxes):
     return crops
 
 
-# def process(image_path, text):
-#     img = Image.open(image_path).convert("RGB")
-#     # ents = extract_entities(text)
-#     ents = extract_entities(image_path, text)
-#     all_results = []
-#     for ent in ents:
-#         # 用实体 name 做零样本检测
-#         boxes = detect_boxes(image_path, ent["name"])
-#         if not boxes:
-#             continue
-#         # 裁剪并匹配
-#         crops = crop_regions(img, boxes)
-#         matched = match_entities([ent], crops, boxes)
-#         all_results.extend(matched)
-#     return img, all_results
+def iou(box1, box2):
+    """计算两个框的IoU"""
+    x1, y1, x2, y2 = box1
+    x1g, y1g, x2g, y2g = box2
+    inter_x1 = max(x1, x1g)
+    inter_y1 = max(y1, y1g)
+    inter_x2 = min(x2, x2g)
+    inter_y2 = min(y2, y2g)
+    inter_area = max(0, inter_x2 - inter_x1) * max(0, inter_y2 - inter_y1)
+    area1 = (x2 - x1) * (y2 - y1)
+    area2 = (x2g - x1g) * (y2g - y1g)  # 修复这里
+    union_area = area1 + area2 - inter_area
+    return inter_area / union_area if union_area > 0 else 0
+
+def merge_boxes(boxes, scores, iou_threshold=0.5):
+    """
+    合并重叠率高的框，确保最终保留的框之间完全不重叠
+    对有重叠的框，保留分数最高的那个
+    """
+    # 按分数排序
+    sorted_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    final_boxes, final_scores = [], []
+
+    while sorted_indices:
+        current = sorted_indices.pop(0)
+        current_box, current_score = boxes[current], scores[current]
+
+        # 保留当前框
+        final_boxes.append(current_box)
+        final_scores.append(current_score)
+
+        # 去掉与当前框重叠超过阈值的框
+        sorted_indices = [
+            i for i in sorted_indices
+            if iou(current_box, boxes[i]) < iou_threshold
+        ]
+
+    return final_boxes, final_scores
+
 def process(image_path, text):
     img = Image.open(image_path).convert("RGB")
     ents = extract_entities(image_path, text)  # [{'name':..., 'label':...}]
-    print(ents)
-    all_results = []
 
-    # 按 label 分组
-    from collections import defaultdict
-    label_groups = defaultdict(list)
-
-    print("\n=== Label Groups ===")
-    for label, group in label_groups.items():
-        print(f"Label: {label}")
-        for entity in group:
-            print(f"  - {entity['name']}")
+    # 生成每个实体的描述
     for e in ents:
-        label_groups[e["label"]].append(e)
+        e["description"] = generate_description_with_llm(e["name"]+" "+e['label'], text)
 
-    # 每个 label 单独检测
-    for label, group in label_groups.items():
-        if label.lower() == "location":  # 🔥 跳过 location
-            print(f"Skipping detection for label: {label}")
+    print("=====Extracted entities with descriptions=====")
+    for e in ents:
+        print(e)
+    print("\n")
+
+    all_boxes, all_scores, all_entities = [], [], []
+
+    # 使用 name+label+description 进行检测
+    for e in ents:
+        if e["label"].lower() == "location":
+            print(f"Skipping detection for location entity: {e['name']}")
             continue
-        print(f"Detecting label: {label}")
-        det_results = detect_boxes(image_path, label)  # [(bbox, score), ...]
+        # detect_prompt = f"{e['name']} ({e['label']}): {e['description']}"
+        detect_prompt = f"{e['name']} : {e['description']}"
+        print(f"Detecting entity: {detect_prompt}")
+        det_results = detect_boxes(image_path, detect_prompt)  # 假设 detector 支持此输入
 
-        print("=== Detection Results ===")
-        print(f"Found {len(det_results)} boxes for label '{label}':")
-        for i, (bbox, score) in enumerate(det_results, 1):
-            print(f"  Box {i}: bbox={bbox}, score={score:.2f}")
-        if not det_results:
-            print(f"No boxes detected for {label}")
-            continue
+        for bbox, score in det_results:
+            all_boxes.append(bbox)
+            all_scores.append(score)
+            all_entities.append(e)
 
-        boxes, scores = zip(*det_results)
-        crops = crop_regions(img, boxes)
 
-        # 多实体-多检测框匹配
-        matched = match_entities(group, crops, boxes)
-        # 把score补回去
-        for m in matched:
-            idx = boxes.index(m["bbox"])
-            m["score"] = scores[idx]
-        all_results.extend(matched)
 
-    return img, all_results
+    # 合并重叠的框
+    merged_boxes, merged_scores = merge_boxes(all_boxes, all_scores, iou_threshold=0.5)
+    print(f"Merged {len(all_boxes)} boxes into {len(merged_boxes)} boxes")
+
+    print("\n========== Detection Summary ==========")
+    for i in range(len(merged_boxes)):
+        # print(f"[{i+1}] Entity: {all_entities[i]['name']} | Label: {all_entities[i]['label']}")
+        print(f"     BBox : {merged_boxes[i]}")
+        print(f"     Score: {merged_scores[i]:.4f}\n")
+
+    # 裁剪合并后的区域
+    crops = crop_regions(img, merged_boxes)
+
+    # 匹配：将去重框与实体按语义匹配
+    matched = match_entities(ents, crops, merged_boxes)
+    for m in matched:
+        idx = merged_boxes.index(m["bbox"])
+        m["score"] = merged_scores[idx]
+
+    return img, matched
 
 
 def draw_and_save(img: Image.Image, results: list, output_path: str):

@@ -9,6 +9,8 @@ from matcher import match_entities
 from collections import defaultdict
 import os
 
+from generate_description import generate_description_with_llm
+
 def crop_regions(image: Image.Image, boxes):
     """
     根据给定的 boxes 裁剪区域并返回图像列表。
@@ -58,6 +60,11 @@ def crop_regions(image: Image.Image, boxes):
 def process(image_path, text):
     img = Image.open(image_path).convert("RGB")
     ents = extract_entities(image_path, text)  # [{'name':..., 'label':...}]
+
+
+    for e in ents:
+        e["description"] = generate_description_with_llm(e["name"], text)
+
     print(ents)
     all_results = []
 

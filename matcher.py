@@ -66,7 +66,8 @@ def match_entities(entities, crops, boxes):
         return []
 
     # 1. 计算相似度矩阵 [num_entities, num_boxes]
-    t_feats = encode_texts(['a ' + e["name"] + " " +e['label'] for e in entities])
+    # t_feats = encode_texts(['a ' + e["name"] + " " +e['label'] for e in entities])
+    t_feats = encode_texts([f"{e['name']}: {e['description']}" for e in entities])
     v_feats = encode_images(crops)
     sim = (t_feats @ v_feats.T).cpu().numpy()
 
@@ -76,6 +77,8 @@ def match_entities(entities, crops, boxes):
     for j, bbox in enumerate(boxes):
         i = int(np.argmax(sim[:, j]))   # 找与此框最相似的实体索引
         score = sim[i, j]
+        if score < 0.45:
+            continue
         results.append({
             "name":  entities[i]["name"],
             "label": entities[i]["label"],
