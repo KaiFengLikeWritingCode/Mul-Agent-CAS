@@ -184,9 +184,26 @@ def _call_deepseek_chat(prompt: str) -> List[Dict]:
             ]
         },
         {
+            "input": "Soldiers operate a medium artillery rocket system II (MARS) on the training ground.",
+            "output": [
+                {"name": "MARS", "label": "weapon"}
+            ]
+        },
+        {
+            "input": "Soldiers test the MARS II rocket launcher on a military test site.",
+            "output": [
+                {"name": "MARS", "label": "weapon"}
+            ]
+        },
+        {
             "input": "A soldier puts on a gas mask inside the chemical plant.",
             "output": []
-        }
+        },
+        {
+            "input": "External landing of a helicopter on a naval vessel with 12 soldiers.",
+            "output": []
+        },
+
     ]
 
     # 3. assemble messages
