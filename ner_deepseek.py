@@ -196,6 +196,12 @@ def _call_deepseek_chat(prompt: str) -> List[Dict]:
             ]
         },
         {
+            "input": "The MARS II rocket launcher is tested on a military test site.",
+            "output": [
+                {"name": "MARS", "label": "weapon"}
+            ]
+        },
+        {
             "input": "A soldier puts on a gas mask inside the chemical plant.",
             "output": []
         },

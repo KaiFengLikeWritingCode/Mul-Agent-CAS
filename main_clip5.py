@@ -247,6 +247,18 @@ def process(image_path, text):
             "score": None       # 分数可设为 None 或省略
         })
 
+    # 找出所有未匹配到 bbox 的其他实体（非 location）
+    matched_names = {m["name"] for m in matched_filtered}  # 已在结果中的实体名
+    for ent in ents:
+        if ent["name"] not in matched_names:
+            print(f"Entity '{ent['name']}' has no matched bbox, adding with bbox=None.")
+            matched_filtered.append({
+                "name": ent["name"],
+                "label": ent["label"],
+                "bbox": None,
+                "score": None
+            })
+
     # return img, matched
     return img, matched_filtered
 
